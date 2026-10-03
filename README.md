@@ -5,12 +5,25 @@ hüpfst über Zähne und kämpfst gegen Bakterien.
 
 ## Spielen
 
-`index.html` im Browser öffnen – fertig. Keine Installation, keine Abhängigkeiten.
+### ▶ **https://sidler.github.io/Tubi/**
 
-Aufs Handy bekommst du es am einfachsten über **GitHub Pages**
-(Repository → *Settings* → *Pages* → Branch auswählen). Danach im Handy-Browser
-öffnen und am besten „Zum Startbildschirm hinzufügen“ – dann läuft es wie eine App
-im Vollbild. Quer halten macht am meisten Spaß.
+Läuft in jedem aktuellen Browser auf Handy, Tablet und Computer. Quer halten macht
+am meisten Spaß.
+
+**Als App auf dem Handy:** Seite öffnen und zum Startbildschirm hinzufügen,
+dann startet Tubi im Vollbild wie eine App.
+- iPhone/iPad (Safari): *Teilen* → *Zum Home-Bildschirm*
+- Android (Chrome): Menü ⋮ → *Zum Startbildschirm hinzufügen*
+
+### Lokal spielen
+
+Das ganze Spiel steckt in einer einzigen Datei, `index.html`, ohne weitere
+Abhängigkeiten. Am Computer reicht ein Doppelklick, und sie öffnet sich im Browser.
+
+> **Hinweis für iPhone/iPad:** Wenn du die Datei in der Dateien-App, in Mail oder
+> in einem Messenger antippst, zeigt iOS sie nur in der Schnellvorschau an. Die
+> führt kein JavaScript aus, das Spiel startet dort also nicht. Nutze auf iOS
+> deshalb den Link oben.
 
 ## Steuerung
 
