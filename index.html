@@ -53,8 +53,8 @@ let W = 0, H = 0, dpr = 1, scale = 1, viewW = 640, viewH = 360, worldOY = 0, uiK
 const btns = {};
 
 function resize() {
-  W = window.innerWidth;
-  H = window.innerHeight;
+  W = window.innerWidth || document.documentElement.clientWidth || 640;
+  H = window.innerHeight || document.documentElement.clientHeight || 360;
   dpr = Math.min(2, window.devicePixelRatio || 1);
   cv.width = Math.round(W * dpr);
   cv.height = Math.round(H * dpr);
@@ -81,6 +81,7 @@ function layoutButtons() {
 }
 
 window.addEventListener('resize', resize);
+window.addEventListener('load', resize);
 window.addEventListener('orientationchange', () => setTimeout(resize, 200));
 resize();
 
@@ -151,6 +152,7 @@ function audioInit() {
 }
 function tone(f0, f1, dur, type = 'square', vol = 0.06, delay = 0) {
   if (!ac || muted) return;
+  try {
   const t = ac.currentTime + delay;
   const o = ac.createOscillator();
   const g = ac.createGain();
@@ -159,9 +161,11 @@ function tone(f0, f1, dur, type = 'square', vol = 0.06, delay = 0) {
   o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + dur);
   g.gain.setValueAtTime(vol, t);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(g).connect(ac.destination);
+  o.connect(g);
+  g.connect(ac.destination);
   o.start(t);
   o.stop(t + dur + 0.02);
+  } catch (e) { /* Ton ist optional */ }
 }
 const sfx = {
   jump:  () => tone(320, 680, 0.14, 'square', 0.04),
@@ -347,10 +351,9 @@ function hudButton(p) {
   return null;
 }
 
-cv.addEventListener('pointerdown', e => {
-  e.preventDefault();
+function pressStart(id, e, isTouch) {
   audioInit();
-  if (e.pointerType === 'touch') showTouch = true;
+  if (isTouch) showTouch = true;
   const p = toLogical(e);
   const hb = hudButton(p);
   if (hb === 'sound') { toggleSound(); return; }
@@ -358,30 +361,47 @@ cv.addEventListener('pointerdown', e => {
   if (state === 'play') {
     if (hb === 'pause') { setState('pause'); return; }
     if (!showTouch) return;
-    try { cv.setPointerCapture(e.pointerId); } catch (err) { /* egal */ }
     const z = touchZone(p);
-    pointers.set(e.pointerId, z);
+    pointers.set(id, z);
     if (z === 'jump') jumpPressed = true;
     if (z === 'shoot') shootPressed = true;
     return;
   }
   screenTap();
-}, { passive: false });
+}
 
-cv.addEventListener('pointermove', e => {
-  if (!pointers.has(e.pointerId)) return;
+function pressMove(id, e) {
+  if (!pointers.has(id)) return;
   const z = touchZone(toLogical(e));
-  const old = pointers.get(e.pointerId);
-  if (z !== old) {
-    // Daumen von links nach rechts rutschen lassen erlaubt; Sprung/Spritzen nicht neu auslösen
-    if ((old === 'left' || old === 'right' || old === null) && (z === 'left' || z === 'right')) pointers.set(e.pointerId, z);
-    else if (old === 'jump' || old === 'shoot') { /* behalten */ }
+  const old = pointers.get(id);
+  // Daumen von links nach rechts rutschen lassen erlaubt; Sprung/Spritzen nicht neu auslösen
+  if (z !== old && (old === 'left' || old === 'right' || old === null) && (z === 'left' || z === 'right')) {
+    pointers.set(id, z);
   }
-});
-const endPointer = e => pointers.delete(e.pointerId);
-cv.addEventListener('pointerup', endPointer);
-cv.addEventListener('pointercancel', endPointer);
-cv.addEventListener('lostpointercapture', endPointer);
+}
+
+if (window.PointerEvent) {
+  cv.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    try { cv.setPointerCapture(e.pointerId); } catch (err) { /* egal */ }
+    pressStart(e.pointerId, e, e.pointerType === 'touch');
+  }, { passive: false });
+  cv.addEventListener('pointermove', e => pressMove(e.pointerId, e));
+  const endPointer = e => pointers.delete(e.pointerId);
+  cv.addEventListener('pointerup', endPointer);
+  cv.addEventListener('pointercancel', endPointer);
+  cv.addEventListener('lostpointercapture', endPointer);
+} else {
+  // ältere Browser ohne Pointer Events
+  const each = (e, fn) => { for (let i = 0; i < e.changedTouches.length; i++) fn(e.changedTouches[i]); };
+  cv.addEventListener('touchstart', e => { e.preventDefault(); each(e, t => pressStart('t' + t.identifier, t, true)); }, { passive: false });
+  cv.addEventListener('touchmove', e => { e.preventDefault(); each(e, t => pressMove('t' + t.identifier, t)); }, { passive: false });
+  const endTouch = e => each(e, t => pointers.delete('t' + t.identifier));
+  cv.addEventListener('touchend', endTouch);
+  cv.addEventListener('touchcancel', endTouch);
+  cv.addEventListener('mousedown', e => { e.preventDefault(); pressStart('m', e, false); });
+  window.addEventListener('mouseup', () => pointers.delete('m'));
+}
 cv.addEventListener('contextmenu', e => e.preventDefault());
 document.addEventListener('gesturestart', e => e.preventDefault());
 document.addEventListener('visibilitychange', () => {
@@ -1414,7 +1434,28 @@ function render() {
 // ---------------------------------------------------------------------------
 let last = performance.now();
 let acc = 0;
+let lastError = '';
+window.addEventListener('error', e => { lastError = String(e.message || e.error || 'Fehler'); });
 function frame(now) {
+  requestAnimationFrame(frame);
+  try { tick(now); } catch (err) {
+    lastError = String(err && err.message || err);
+    if (window.console) console.error(err);
+  }
+  if (lastError) {
+    try {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = 'rgba(0,0,0,0.75)';
+      ctx.fillRect(0, 0, cv.width, 28 * dpr);
+      ctx.fillStyle = '#ffd0d8';
+      ctx.font = (12 * dpr) + 'px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Fehler: ' + lastError, 8 * dpr, 14 * dpr);
+    } catch (e2) { /* nichts mehr zu tun */ }
+  }
+}
+function tick(now) {
   let dt = (now - last) / 1000;
   last = now;
   if (dt > 0.1) dt = 0.1;
@@ -1427,7 +1468,6 @@ function frame(now) {
     if (lv) updateFx(dt);
   }
   render();
-  requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 </script>
