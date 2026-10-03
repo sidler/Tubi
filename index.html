@@ -17,6 +17,20 @@
     overflow: hidden;
     overscroll-behavior: none;
   }
+  #nojs {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    box-sizing: border-box;
+    font: 17px/1.45 -apple-system, system-ui, sans-serif;
+    color: #ffe1e7;
+    text-align: center;
+  }
+  #nojs div { max-width: 30em; }
+  #nojs b { color: #9fe3ff; font-size: 26px; display: block; margin-bottom: 10px; }
   canvas {
     display: block;
     touch-action: none;
@@ -28,9 +42,17 @@
 </style>
 </head>
 <body>
+<div id="nojs"><div>
+  <b>Tubi – Der Zahnpasta-Held</b>
+  Das Spiel kann hier nicht starten, weil JavaScript nicht ausgeführt wird.<br><br>
+  Auf dem iPhone/iPad zeigt die Vorschau der Dateien-App (oder von Mail, WhatsApp …)
+  HTML-Dateien nur als Bild an. Öffne das Spiel stattdessen über seine Webadresse in Safari,
+  oder am Computer mit Doppelklick im Browser.
+</div></div>
 <canvas id="game"></canvas>
 <script>
 'use strict';
+document.getElementById('nojs').style.display = 'none';
 
 // ---------------------------------------------------------------------------
 // Grundkonstanten
