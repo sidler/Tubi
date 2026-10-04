@@ -15,6 +15,10 @@ dann startet Tubi im Vollbild wie eine App.
 - iPhone/iPad (Safari): *Teilen* → *Zum Home-Bildschirm*
 - Android (Chrome): Menü ⋮ → *Zum Startbildschirm hinzufügen*
 
+**Vollbild:** Der Vollbild-Knopf schaltet in Chrome, Firefox, Edge und auf Android
+direkt um. Safari auf dem iPhone kann das nicht per Knopf; dort erklärt der Knopf,
+wie Tubi über „Zum Home-Bildschirm“ ganz ohne Adressleiste startet.
+
 ### Lokal spielen
 
 Das ganze Spiel steckt in einer einzigen Datei, `index.html`, ohne weitere
@@ -34,6 +38,7 @@ Abhängigkeiten. Am Computer reicht ein Doppelklick, und sie öffnet sich im Bro
 | Zahnpasta spritzen | Tuben-Knopf | X / J / K |
 | Pause | ⏸ oben rechts | P / Esc |
 | Ton an/aus | 🔈 oben rechts | M |
+| Vollbild | ⛶ oben (auf dem Startbildschirm groß beschriftet) | F |
 
 ## Spielregeln
 

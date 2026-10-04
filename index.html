@@ -10,6 +10,12 @@
 <meta name="apple-mobile-web-app-title" content="Tubi">
 <title>Tubi – Der Zahnpasta-Held</title>
 <style>
+  :root {
+    --sat: env(safe-area-inset-top, 0px);
+    --sar: env(safe-area-inset-right, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sal: env(safe-area-inset-left, 0px);
+  }
   html, body {
     margin: 0;
     height: 100%;
@@ -75,8 +81,14 @@ let W = 0, H = 0, dpr = 1, scale = 1, viewW = 640, viewH = 360, worldOY = 0, uiK
 const btns = {};
 
 function resize() {
-  W = window.innerWidth || document.documentElement.clientWidth || 640;
-  H = window.innerHeight || document.documentElement.clientHeight || 360;
+  // Notch und abgerundete Ecken freilassen (wichtig im Vollbild / vom Home-Bildschirm)
+  const cs = getComputedStyle(document.documentElement);
+  const inset = k => parseFloat(cs.getPropertyValue(k)) || 0;
+  const L = inset('--sal'), R = inset('--sar'), T = inset('--sat'), B = inset('--sab');
+  W = (window.innerWidth || document.documentElement.clientWidth || 640) - L - R;
+  H = (window.innerHeight || document.documentElement.clientHeight || 360) - T - B;
+  cv.style.marginLeft = L + 'px';
+  cv.style.marginTop = T + 'px';
   dpr = Math.min(2, window.devicePixelRatio || 1);
   cv.width = Math.round(W * dpr);
   cv.height = Math.round(H * dpr);
@@ -100,10 +112,13 @@ function layoutButtons() {
   btns.pause = { x: viewW - 22, y: 22, r: 15 };
   btns.sound = { x: viewW - 58, y: 22, r: 15 };
   btns.fs    = { x: viewW - 94, y: 22, r: 15 };
+  btns.fsBig = { x: 12, y: 10, w: 118, h: 30 };
 }
 
 window.addEventListener('resize', resize);
 window.addEventListener('load', resize);
+document.addEventListener('fullscreenchange', () => setTimeout(resize, 100));
+document.addEventListener('webkitfullscreenchange', () => setTimeout(resize, 100));
 window.addEventListener('orientationchange', () => setTimeout(resize, 200));
 resize();
 
@@ -340,6 +355,7 @@ window.addEventListener('keydown', e => {
   if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space'].includes(e.code)) e.preventDefault();
   if (e.repeat) return;
   keys[e.code] = true;
+  if (fsHint) { fsHint = false; stateTime = performance.now(); return; }
   if (state === 'play') {
     if (isKey(e.code, 'jump')) jumpPressed = true;
     if (isKey(e.code, 'shoot')) shootPressed = true;
@@ -348,6 +364,7 @@ window.addEventListener('keydown', e => {
     screenTap();
   }
   if (e.code === 'KeyM') toggleSound();
+  if (e.code === 'KeyF') toggleFullscreen();
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 
@@ -366,8 +383,12 @@ function touchZone(p) {
 }
 
 function hudButton(p) {
+  if (state === 'title' && showFsButton()) {
+    const b = btns.fsBig;
+    if (p.x >= b.x - 6 && p.x <= b.x + b.w + 6 && p.y >= b.y - 6 && p.y <= b.y + b.h + 6) return 'fs';
+  }
   for (const k of ['pause', 'sound', 'fs']) {
-    if (k === 'fs' && !fsAvailable()) continue;
+    if (k === 'fs' && !showFsButton()) continue;
     if (dist(p, btns[k]) < btns[k].r * 1.7) return k;
   }
   return null;
@@ -375,6 +396,7 @@ function hudButton(p) {
 
 function pressStart(id, e, isTouch) {
   audioInit();
+  if (fsHint) { fsHint = false; stateTime = performance.now(); return; }
   if (isTouch) showTouch = true;
   const p = toLogical(e);
   const hb = hudButton(p);
@@ -452,10 +474,30 @@ function toggleSound() {
   muted = !muted;
   store('tubi_muted', muted ? '1' : '0');
 }
+let fsHint = false;
 function fsAvailable() {
   return !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
 }
+function isFullscreen() {
+  return !!(document.fullscreenElement || document.webkitFullscreenElement);
+}
+function isStandalone() {
+  try {
+    return window.navigator.standalone === true ||
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.matchMedia('(display-mode: fullscreen)').matches;
+  } catch (e) { return false; }
+}
+function showFsButton() {
+  return !isStandalone() || isFullscreen();
+}
 function toggleFullscreen() {
+  if (!fsAvailable()) {
+    // z.B. iPhone-Safari: kein Vollbild per Knopf möglich -> Anleitung zeigen
+    if (state === 'play') setState('pause');
+    fsHint = true;
+    return;
+  }
   try {
     if (document.fullscreenElement || document.webkitFullscreenElement) {
       (document.exitFullscreen || document.webkitExitFullscreen).call(document);
@@ -1286,6 +1328,13 @@ function drawIconButton(b, kind) {
     if (muted) { ctx.moveTo(x + 4, y - 4); ctx.lineTo(x + 9, y + 4); ctx.moveTo(x + 9, y - 4); ctx.lineTo(x + 4, y + 4); }
     else ctx.arc(x + 3, y, 5, -0.9, 0.9);
     ctx.stroke();
+  } else if (kind === 'fs' && isFullscreen()) {
+    ctx.beginPath();
+    ctx.moveTo(x - 7, y - 3); ctx.lineTo(x - 3, y - 3); ctx.lineTo(x - 3, y - 7);
+    ctx.moveTo(x + 3, y - 7); ctx.lineTo(x + 3, y - 3); ctx.lineTo(x + 7, y - 3);
+    ctx.moveTo(x + 7, y + 3); ctx.lineTo(x + 3, y + 3); ctx.lineTo(x + 3, y + 7);
+    ctx.moveTo(x - 3, y + 7); ctx.lineTo(x - 3, y + 3); ctx.lineTo(x - 7, y + 3);
+    ctx.stroke();
   } else if (kind === 'fs') {
     ctx.beginPath();
     ctx.moveTo(x - 7, y - 3); ctx.lineTo(x - 7, y - 7); ctx.lineTo(x - 3, y - 7);
@@ -1326,10 +1375,10 @@ function drawHUD() {
   rr(px, 30, Math.max(5, pw * prog), 5, 2.5); ctx.fill();
 
   // Level + Knöpfe
-  text('Level ' + lv.n, (fsAvailable() ? btns.fs.x : btns.sound.x) - 24, 22, 13, '#ffffff', 'right');
+  text('Level ' + lv.n, (showFsButton() ? btns.fs.x : btns.sound.x) - 24, 22, 13, '#ffffff', 'right');
   drawIconButton(btns.pause, 'pause');
   drawIconButton(btns.sound, 'sound');
-  if (fsAvailable()) drawIconButton(btns.fs, 'fs');
+  if (showFsButton()) drawIconButton(btns.fs, 'fs');
 }
 
 function drawControls() {
@@ -1419,12 +1468,42 @@ function drawTitle() {
   if (Math.sin(time * 5) > -0.3) text('Tippen zum Starten', viewW / 2, cy + 40, 18, '#9fe3ff');
   if (viewH > viewW) text('Tipp: Handy quer halten!', viewW / 2, cy + 70, 12, '#ffe1e7');
   drawIconButton(btns.sound, 'sound');
-  if (fsAvailable()) drawIconButton(btns.fs, 'fs');
+  if (showFsButton()) {
+    const b = btns.fsBig;
+    ctx.fillStyle = 'rgba(31,98,201,0.9)';
+    rr(b.x, b.y, b.w, b.h, b.h / 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    drawIconButton({ x: b.x + 17, y: b.y + b.h / 2, r: 11 }, 'fs');
+    text(isFullscreen() ? 'Vollbild aus' : 'Vollbild', b.x + 32, b.y + b.h / 2 + 0.5, 13, '#ffffff', 'left', null);
+  }
+}
+
+function drawFsHint() {
+  ctx.fillStyle = 'rgba(20,2,8,0.95)';
+  ctx.fillRect(0, 0, viewW, viewH);
+  const ios = /iP(hone|od|ad)/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const cy = viewH / 2;
+  text('Vollbild', viewW / 2, cy - 92, 30, '#9fe3ff');
+  if (ios) {
+    text('Safari erlaubt auf dem iPhone kein Vollbild per Knopf.', viewW / 2, cy - 50, 13, '#ffffff');
+    text('So geht es trotzdem:', viewW / 2, cy - 22, 15, '#fff7a8');
+    text('1.  Unten auf das Teilen-Symbol tippen (Quadrat mit Pfeil)', viewW / 2, cy + 6, 13, '#ffe1e7');
+    text('2.  „Zum Home-Bildschirm“ wählen', viewW / 2, cy + 28, 13, '#ffe1e7');
+    text('3.  Tubi über das neue Symbol starten: ohne Adressleiste!', viewW / 2, cy + 50, 13, '#ffe1e7');
+  } else {
+    text('Dein Browser unterstützt hier kein Vollbild.', viewW / 2, cy - 30, 14, '#ffffff');
+    text('Tipp: Im Browser-Menü „Zum Startbildschirm hinzufügen“', viewW / 2, cy, 13, '#ffe1e7');
+    text('und Tubi von dort starten.', viewW / 2, cy + 22, 13, '#ffe1e7');
+  }
+  if (performance.now() - stateTime > 300) text('Tippen zum Schließen', viewW / 2, cy + 96, 15, '#9fe3ff');
 }
 
 function render() {
   ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
-  if (state === 'title') { drawTitle(); return; }
+  if (state === 'title') { drawTitle(); if (fsHint) drawFsHint(); return; }
   drawBackground(camX);
   ctx.save();
   ctx.translate(-camX, worldOY);
@@ -1449,6 +1528,7 @@ function render() {
       { t: 'Erreichtes Level: ' + lv.n, s: 13, c: '#ffe1e7' },
     ], 'Tippen für neuen Versuch');
   }
+  if (fsHint) drawFsHint();
 }
 
 // ---------------------------------------------------------------------------
